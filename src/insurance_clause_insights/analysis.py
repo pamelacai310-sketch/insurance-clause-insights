@@ -7,7 +7,25 @@ from typing import Optional
 
 from .config import FEATURE_HINTS
 from .models import ComparedProduct, ComparisonGroup, ContractRecord, UniqueFeature
-from .parsing import label_feature
+from .parsing import label_feature, extract_premium
+
+
+def _extract_sum_assured(key_facts: dict[str, str]) -> float | None:
+    """从key_facts中提取保险金额"""
+    sum_assured_text = key_facts.get("sum_insured", "")
+    if sum_assured_text:
+        return extract_premium(sum_assured_text)
+    return None
+
+
+def _extract_payment_period(key_facts: dict[str, str]) -> int | None:
+    """从key_facts中提取缴费期间年数"""
+    payment_period_text = key_facts.get("payment_period", "")
+    if payment_period_text:
+        match = re.search(r"(\d+)\s*年", payment_period_text)
+        if match:
+            return int(match.group(1))
+    return None
 
 
 def _char_ngrams(text: str) -> set[str]:
@@ -133,6 +151,15 @@ def compare_contracts(
                     source_url=contract.source_url,
                     key_facts=contract.key_facts,
                     unique_features=_pick_unique_features(contract, items, top_n=top_n),
+                    # 精算参数
+                    entry_age=contract.entry_age,
+                    gender=contract.gender,
+                    annual_premium=contract.annual_premium,
+                    sum_assured=_extract_sum_assured(contract.key_facts),
+                    payment_period=_extract_payment_period(contract.key_facts),
+                    insurance_period=contract.key_facts.get("insurance_period"),
+                    dividend_type=contract.dividend_type,
+                    guaranteed_rate=contract.guaranteed_rate,
                 )
             )
 

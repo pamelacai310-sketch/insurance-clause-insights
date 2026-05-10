@@ -38,6 +38,17 @@ def serialize_groups(groups: list[ComparisonGroup], category_counts: dict[str, i
                             }
                             for feature in product.unique_features
                         ],
+                        # 新增：精算参数
+                        "actuarial_params": {
+                            "entry_age": product.entry_age,
+                            "gender": product.gender,
+                            "annual_premium": product.annual_premium,
+                            "sum_assured": product.sum_assured,
+                            "payment_period": product.payment_period,
+                            "insurance_period": product.insurance_period,
+                            "dividend_type": product.dividend_type,
+                            "guaranteed_rate": product.guaranteed_rate,
+                        },
                     }
                     for product in group.products
                 ],

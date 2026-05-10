@@ -26,6 +26,80 @@ def normalize_text(text: str) -> str:
     return text.strip()
 
 
+def extract_age(text: str) -> int | None:
+    """从文本中提取年龄
+
+    Examples:
+        >>> extract_age("40岁")
+        40
+        >>> extract_age("被保险人年龄：30周岁")
+        30
+    """
+    match = re.search(r"(\d+)\s*[岁周岁]", text)
+    if match:
+        try:
+            return int(match.group(1))
+        except (ValueError, IndexError):
+            pass
+    return None
+
+
+def extract_premium(text: str) -> float | None:
+    """从文本中提取保费金额
+
+    Examples:
+        >>> extract_premium("年交保费10,000元")
+        10000.0
+        >>> extract_premium("首年保费1万元")
+        10000.0
+    """
+    match = re.search(r"([\d,]+(?:\.\d+)?)\s*(万)?元", text)
+    if match:
+        try:
+            value = float(match.group(1).replace(",", ""))
+            if match.group(2) == "万":
+                value *= 10000
+            return value
+        except (ValueError, IndexError):
+            pass
+    return None
+
+
+def extract_rate(text: str) -> float | None:
+    """从文本中提取利率（百分比形式）
+
+    Examples:
+        >>> extract_rate("保证利率3.5%")
+        0.035
+        >>> extract_rate("最低保证利率：3.0 percent")
+        0.03
+    """
+    match = re.search(r"(\d+(?:\.\d+)?)\s*[%％]", text)
+    if match:
+        try:
+            return float(match.group(1)) / 100
+        except (ValueError, IndexError):
+            pass
+    return None
+
+
+def normalize_gender(text: str) -> str | None:
+    """标准化性别为 M/F
+
+    Examples:
+        >>> normalize_gender("男性")
+        'M'
+        >>> normalize_gender("女")
+        'F'
+    """
+    text = text.lower()
+    if "男" in text or "male" in text:
+        return "M"
+    elif "女" in text or "female" in text:
+        return "F"
+    return None
+
+
 def is_contract_record(record: dict) -> bool:
     bag = " ".join(
         str(record.get(key, ""))
@@ -54,7 +128,28 @@ def extract_fields(text: str) -> dict[str, str]:
             pattern = rf"(?:{alias})[：:\s]+([^\n]{{2,60}})"
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                value = normalize_text(match.group(1))
+                raw_value = normalize_text(match.group(1))
+
+                # 对特定字段使用专门的数值提取器
+                if field == "entry_age":
+                    age = extract_age(raw_value)
+                    if age is not None:
+                        value = str(age)
+                elif field == "annual_premium":
+                    premium = extract_premium(raw_value)
+                    if premium is not None:
+                        value = str(premium)
+                elif field == "guaranteed_rate":
+                    rate = extract_rate(raw_value)
+                    if rate is not None:
+                        value = str(rate)
+                elif field == "gender":
+                    gender = normalize_gender(raw_value)
+                    if gender is not None:
+                        value = gender
+                else:
+                    value = raw_value
+
                 break
         fields[field] = value
     return fields
@@ -177,6 +272,12 @@ def load_contract_records(crawl_json_path: Path) -> tuple[list[ContractRecord], 
                 pages=pages,
                 full_text=text,
                 feature_candidates=build_feature_candidates(fields, text),
+                # 精算参数
+                entry_age=int(fields["entry_age"]) if fields.get("entry_age") else None,
+                gender=fields.get("gender"),
+                annual_premium=float(fields["annual_premium"]) if fields.get("annual_premium") else None,
+                dividend_type=fields.get("dividend_type"),
+                guaranteed_rate=float(fields["guaranteed_rate"]) if fields.get("guaranteed_rate") else None,
             )
         )
 

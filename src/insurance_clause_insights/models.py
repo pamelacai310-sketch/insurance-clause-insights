@@ -21,6 +21,12 @@ class ContractRecord:
     pages: int = 0
     full_text: str = ""
     feature_candidates: list[str] = field(default_factory=list)
+    # 精算参数（可选）
+    entry_age: int | None = None
+    gender: str | None = None
+    annual_premium: float | None = None
+    dividend_type: str | None = None
+    guaranteed_rate: float | None = None
 
 
 @dataclass
@@ -32,6 +38,15 @@ class ComparedProduct:
     source_url: str
     key_facts: dict[str, str] = field(default_factory=dict)
     unique_features: list[UniqueFeature] = field(default_factory=list)
+    # 精算参数（可选）
+    entry_age: int | None = None
+    gender: str | None = None
+    annual_premium: float | None = None
+    sum_assured: float | None = None
+    payment_period: int | None = None
+    insurance_period: str | None = None
+    dividend_type: str | None = None
+    guaranteed_rate: float | None = None
 
 
 @dataclass

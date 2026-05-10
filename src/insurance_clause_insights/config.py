@@ -30,6 +30,13 @@ FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
     "sum_insured": ("保险金额", "基本保额"),
     "effective_date": ("生效日期", "起保日期"),
     "company_name": ("保险公司", "承保公司"),
+    # 精算分析专用字段
+    "entry_age": ("投保年龄", "被保险人年龄", "承保年龄", "投保时年龄"),
+    "annual_premium": ("年交保费", "首年保费", "每年缴费", "期交保费", "年缴保费"),
+    "gender": ("男性", "女性", "男", "女"),
+    "dividend_type": ("分红型", "万能型", "保额分红", "现金分红", "累积生息"),
+    "guaranteed_rate": ("保证利率", "最低保证利率", "结算利率", "保底利率"),
+    "annuity_start_age": ("首次领取年龄", "年金开始领取年龄", "领取年龄"),
 }
 
 FIELD_DISPLAY_NAMES: dict[str, str] = {
@@ -41,6 +48,13 @@ FIELD_DISPLAY_NAMES: dict[str, str] = {
     "sum_insured": "保险金额",
     "effective_date": "生效日期",
     "company_name": "保险公司",
+    # 精算分析专用字段
+    "entry_age": "投保年龄",
+    "annual_premium": "年缴保费",
+    "gender": "性别",
+    "dividend_type": "分红类型",
+    "guaranteed_rate": "保证利率",
+    "annuity_start_age": "年金领取年龄",
 }
 
 FEATURE_HINTS: tuple[str, ...] = (

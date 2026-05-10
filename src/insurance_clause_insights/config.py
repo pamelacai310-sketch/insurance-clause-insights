@@ -4,6 +4,7 @@ from pathlib import Path
 
 UPSTREAM_REPO_URL = "https://github.com/pamelacai310-sketch/insurance-crawler-push.git"
 DEFAULT_UPSTREAM_DIR = Path(".cache/insurance-crawler-push")
+DEFAULT_UPSTREAM_VENV_DIR = Path(".cache/upstream-venv")
 DEFAULT_OUTPUT_ROOT = Path("outputs")
 
 CATEGORY_RULES: list[tuple[str, tuple[str, ...]]] = [

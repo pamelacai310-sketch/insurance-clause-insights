@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-import importlib.util
+import hashlib
 import logging
+import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
 
-from .config import UPSTREAM_REPO_URL
+from .config import DEFAULT_UPSTREAM_VENV_DIR, UPSTREAM_REPO_URL
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +32,71 @@ def ensure_upstream_repo(upstream_dir: Path) -> Path:
     return upstream_dir
 
 
-def _load_module(module_path: Path, module_name: str):
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"无法加载模块: {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def _iter_python_candidates() -> list[str]:
+    candidates: list[str] = []
+    explicit = os.environ.get("INSURANCE_UPSTREAM_PYTHON")
+    if explicit:
+        candidates.append(explicit)
+
+    current_python = Path(sys.executable).name
+    for candidate in (current_python, "python3.12", "python3.11", "python3.10", "python3"):
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
+
+
+def find_compatible_python() -> str:
+    for candidate in _iter_python_candidates():
+        try:
+            result = subprocess.run(
+                [candidate, "-c", "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            continue
+
+        major, minor = (int(part) for part in result.stdout.strip().split("."))
+        if (major, minor) >= (3, 10):
+            return candidate
+
+    raise RuntimeError(
+        "未找到可用于运行上游爬虫的 Python 3.10+ 解释器。"
+        "请安装 python3.10+，或设置 INSURANCE_UPSTREAM_PYTHON 指向可用解释器。"
+    )
+
+
+def _venv_python(venv_dir: Path) -> Path:
+    if os.name == "nt":
+        return venv_dir / "Scripts" / "python.exe"
+    return venv_dir / "bin" / "python"
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def ensure_upstream_runtime(upstream_dir: Path, runtime_dir: Path = DEFAULT_UPSTREAM_VENV_DIR) -> Path:
+    runtime_dir.parent.mkdir(parents=True, exist_ok=True)
+    runtime_python = _venv_python(runtime_dir)
+    requirements_path = upstream_dir / "requirements.txt"
+    marker_path = runtime_dir / ".requirements.sha256"
+
+    if not runtime_python.exists():
+        compatible_python = find_compatible_python()
+        logger.info("创建上游运行环境: %s", runtime_dir)
+        run_command([compatible_python, "-m", "venv", str(runtime_dir)])
+
+    current_hash = _sha256(requirements_path)
+    installed_hash = marker_path.read_text(encoding="utf-8").strip() if marker_path.exists() else ""
+    if installed_hash != current_hash:
+        logger.info("安装上游依赖: %s", requirements_path)
+        run_command([str(runtime_python), "-m", "pip", "install", "--upgrade", "pip"])
+        run_command([str(runtime_python), "-m", "pip", "install", "-r", str(requirements_path)])
+        marker_path.write_text(current_hash, encoding="utf-8")
+
+    return runtime_python
 
 
 def run_upstream_crawler(
@@ -47,14 +107,25 @@ def run_upstream_crawler(
     workers: int = 1,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
-    crawler_module = _load_module(upstream_dir / "crawler.py", "insurance_crawler_upstream")
+    runtime_python = ensure_upstream_runtime(upstream_dir)
+    runner_path = Path(__file__).with_name("upstream_bridge.py")
 
-    crawler_module.OUTPUT_DIR = output_dir
-    crawler_module.PDF_DIR = output_dir / "pdfs"
-    crawler_module.DATA_DIR = output_dir / "data"
+    command = [
+        str(runtime_python),
+        str(runner_path),
+        "--upstream-dir",
+        str(upstream_dir),
+        "--output-dir",
+        str(output_dir),
+        "--workers",
+        str(workers),
+    ]
+    if headless:
+        command.append("--headless")
+    if companies:
+        command.extend(["--companies", *companies])
 
-    crawler = crawler_module.InsuranceCrawler(headless=headless, max_workers=workers)
-    crawler.run(companies=companies)
+    run_command(command)
     return find_latest_crawl_json(output_dir)
 
 

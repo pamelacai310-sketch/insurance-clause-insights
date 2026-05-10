@@ -20,6 +20,12 @@
 - Google Chrome（供上游 Selenium 爬虫使用）
 - 可以联网访问保险公司官网
 
+说明：
+
+- 当前项目本体支持 Python 3.9+
+- 上游 `insurance-crawler-push` 需要 Python 3.10+ 语法
+- 如果当前环境是 3.9，本项目会自动寻找本机的 `python3.10+`，在 `.cache/upstream-venv/` 建独立运行环境后执行上游爬虫
+
 ## 安装
 
 ```bash
@@ -109,3 +115,4 @@ outputs/
 
 - 上游仓库负责抓取，当前项目负责“同类合同对比”和“独特特色提炼”
 - 下载的 PDF 与原始数据不纳入 Git 管理
+- 如果需要手动指定上游运行解释器，可设置环境变量 `INSURANCE_UPSTREAM_PYTHON=/path/to/python3.10`

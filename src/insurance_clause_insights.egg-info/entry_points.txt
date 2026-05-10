@@ -1,0 +1,2 @@
+[console_scripts]
+insurance-clause-insights = insurance_clause_insights.cli:main

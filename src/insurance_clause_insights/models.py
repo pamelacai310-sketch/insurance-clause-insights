@@ -1,0 +1,42 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class UniqueFeature:
+    label: str
+    snippet: str
+    score: float
+
+
+@dataclass
+class ContractRecord:
+    company: str
+    product_name: str
+    category: str
+    pdf_path: str
+    source_url: str
+    key_facts: dict[str, str] = field(default_factory=dict)
+    pages: int = 0
+    full_text: str = ""
+    feature_candidates: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ComparedProduct:
+    company: str
+    product_name: str
+    category: str
+    pdf_path: str
+    source_url: str
+    key_facts: dict[str, str] = field(default_factory=dict)
+    unique_features: list[UniqueFeature] = field(default_factory=list)
+
+
+@dataclass
+class ComparisonGroup:
+    category: str
+    product_count: int
+    products: list[ComparedProduct] = field(default_factory=list)
+

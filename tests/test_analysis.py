@@ -1,4 +1,4 @@
-from insurance_clause_insights.analysis import compare_contracts
+from insurance_clause_insights.analysis import build_feature_frequency_audit, compare_contracts
 from insurance_clause_insights.models import ContractRecord
 from insurance_clause_insights.parsing import infer_category
 
@@ -40,3 +40,23 @@ def test_compare_contracts_extracts_unique_features() -> None:
     first_product = groups[0].products[0]
     assert len(first_product.unique_features) == 2
     assert "祝寿金责任" in first_product.unique_features[0].snippet
+    assert "其他" not in first_product.rare_features
+
+
+def test_feature_frequency_audit_marks_only_low_frequency_as_true_rare() -> None:
+    contracts = [build_contract(index) for index in range(21)]
+    for contract in contracts:
+        contract.feature_candidates.append("本合同支持保单贷款")
+    contracts[0].feature_candidates.append("本合同含重大自然灾害意外额外给付")
+
+    audits = build_feature_frequency_audit(
+        contracts,
+        target_company=contracts[0].company,
+        target_product_name=contracts[0].product_name,
+    )
+    target_audit = {item.label: item for item in audits[(contracts[0].company, contracts[0].product_name)]}
+
+    assert target_audit["保单贷款"].classification == "通用功能"
+    assert target_audit["保单贷款"].sample_count == 21
+    assert target_audit["意外额外给付"].classification == "真罕见条款"
+    assert target_audit["意外额外给付"].sample_count == 1

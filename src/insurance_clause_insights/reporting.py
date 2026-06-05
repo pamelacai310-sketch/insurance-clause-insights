@@ -38,6 +38,22 @@ def serialize_groups(groups: list[ComparisonGroup], category_counts: dict[str, i
                             }
                             for feature in product.unique_features
                         ],
+                        "feature_audit": [
+                            {
+                                "label": item.label,
+                                "classification": item.classification,
+                                "sample_count": item.sample_count,
+                                "sample_total": item.sample_total,
+                                "sample_frequency": item.sample_frequency,
+                                "uniqueness_score": item.uniqueness_score,
+                                "target_only": item.target_only,
+                                "shared_by_same_company": item.shared_by_same_company,
+                            }
+                            for item in product.feature_audit
+                        ],
+                        "common_features": product.common_features,
+                        "relative_features": product.relative_features,
+                        "rare_features": product.rare_features,
                         # 新增：精算参数
                         "actuarial_params": {
                             "entry_age": product.entry_age,
@@ -93,6 +109,15 @@ def write_markdown_report(groups: list[ComparisonGroup], category_counts: dict[s
                 lines.append(
                     f"- 特色{index} [{feature.label}]（score={feature.score:.4f}）: {feature.snippet}"
                 )
+            if product.feature_audit:
+                lines.extend(
+                    [
+                        "- 频率校正口径: 样本命中率低于25%才算真罕见；75%及以上按通用功能处理。",
+                        f"- 真罕见条款: {'；'.join(product.rare_features) or '无'}",
+                        f"- 相对少见功能: {'；'.join(product.relative_features) or '无'}",
+                        f"- 通用功能: {'；'.join(product.common_features) or '无'}",
+                    ]
+                )
             lines.append("")
 
     output_path.write_text("\n".join(lines), encoding="utf-8")
@@ -115,6 +140,9 @@ def write_excel_report(groups: list[ComparisonGroup], category_counts: dict[str,
         "特色1",
         "特色2",
         "特色3",
+        "真罕见条款",
+        "相对少见功能",
+        "通用功能",
     ]
     header_fill = PatternFill("solid", fgColor="1F4E79")
     header_font = Font(color="FFFFFF", bold=True)
@@ -143,13 +171,16 @@ def write_excel_report(groups: list[ComparisonGroup], category_counts: dict[str,
                     feature_texts[0],
                     feature_texts[1],
                     feature_texts[2],
+                    "；".join(product.rare_features),
+                    "；".join(product.relative_features),
+                    "；".join(product.common_features),
                 ]
             )
             for cell in overview[row_index]:
                 cell.alignment = Alignment(vertical="top", wrap_text=True)
             row_index += 1
 
-    for width, column in zip((16, 12, 30, 20, 18, 18, 14, 48, 40, 40, 40), "ABCDEFGHIJK"):
+    for width, column in zip((16, 12, 30, 20, 18, 18, 14, 48, 40, 40, 40, 40, 40, 40), "ABCDEFGHIJKLMN"):
         overview.column_dimensions[column].width = width
 
     stats = workbook.create_sheet("类别统计")

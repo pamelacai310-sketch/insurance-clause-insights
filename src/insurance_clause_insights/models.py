@@ -11,6 +11,18 @@ class UniqueFeature:
 
 
 @dataclass
+class FeatureAudit:
+    label: str
+    classification: str
+    sample_count: int
+    sample_total: int
+    sample_frequency: float
+    uniqueness_score: float
+    target_only: bool = False
+    shared_by_same_company: bool = False
+
+
+@dataclass
 class ContractRecord:
     company: str
     product_name: str
@@ -27,6 +39,10 @@ class ContractRecord:
     annual_premium: float | None = None
     dividend_type: str | None = None
     guaranteed_rate: float | None = None
+    feature_audit: list[FeatureAudit] = field(default_factory=list)
+    common_features: list[str] = field(default_factory=list)
+    relative_features: list[str] = field(default_factory=list)
+    rare_features: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -47,6 +63,10 @@ class ComparedProduct:
     insurance_period: str | None = None
     dividend_type: str | None = None
     guaranteed_rate: float | None = None
+    feature_audit: list[FeatureAudit] = field(default_factory=list)
+    common_features: list[str] = field(default_factory=list)
+    relative_features: list[str] = field(default_factory=list)
+    rare_features: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -54,4 +74,3 @@ class ComparisonGroup:
     category: str
     product_count: int
     products: list[ComparedProduct] = field(default_factory=list)
-

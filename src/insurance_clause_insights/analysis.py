@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Optional
 
 from .config import FEATURE_HINTS
-from .models import ComparedProduct, ComparisonGroup, ContractRecord, UniqueFeature
+from .models import ComparedProduct, ComparisonGroup, ContractRecord, FeatureAudit, UniqueFeature
 from .parsing import label_feature, extract_premium
 
 
@@ -64,6 +64,73 @@ def _uniqueness_score(snippet: str, peer_snippets: list[str]) -> float:
     rarity = 1.0 - max_similarity
     length_factor = min(1.0, math.log(max(len(snippet), 10), 10))
     return round((rarity * 0.75 + _keyword_bonus(snippet)) * length_factor, 4)
+
+
+TRUE_RARE_THRESHOLD = 0.25
+COMMON_FEATURE_THRESHOLD = 0.75
+
+
+def _feature_label(snippet: str) -> str:
+    label = label_feature(snippet)
+    return re.sub(r"\s+", "", label or snippet).strip()
+
+
+def _classify_by_frequency(frequency: float) -> str:
+    if frequency < TRUE_RARE_THRESHOLD:
+        return "真罕见条款"
+    if frequency >= COMMON_FEATURE_THRESHOLD:
+        return "通用功能"
+    return "相对少见功能"
+
+
+def build_feature_frequency_audit(
+    contracts: list[ContractRecord],
+    target_company: str | None = None,
+    target_product_name: str | None = None,
+) -> dict[tuple[str, str], list[FeatureAudit]]:
+    """按样本命中率校正“罕见/独特”口径，避免把行业通用功能写成独特点。"""
+    sample_total = len(contracts)
+    label_to_products: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    label_to_companies: dict[str, set[str]] = defaultdict(set)
+
+    for contract in contracts:
+        product_key = (contract.company, contract.product_name)
+        for snippet in contract.feature_candidates:
+            label = _feature_label(snippet)
+            if not label:
+                continue
+            label_to_products[label].add(product_key)
+            label_to_companies[label].add(contract.company)
+
+    target_key = (target_company, target_product_name) if target_company and target_product_name else None
+    audits: dict[tuple[str, str], list[FeatureAudit]] = {}
+    for contract in contracts:
+        product_key = (contract.company, contract.product_name)
+        product_labels = {_feature_label(snippet) for snippet in contract.feature_candidates}
+        product_audits: list[FeatureAudit] = []
+        for label in sorted(label for label in product_labels if label):
+            product_keys = label_to_products[label]
+            count = len(product_keys)
+            frequency = count / sample_total if sample_total else 0.0
+            is_target = target_key == product_key
+            companies = label_to_companies[label]
+            product_audits.append(
+                FeatureAudit(
+                    label=label,
+                    classification=_classify_by_frequency(frequency),
+                    sample_count=count,
+                    sample_total=sample_total,
+                    sample_frequency=round(frequency, 4),
+                    uniqueness_score=round(1.0 - frequency, 4),
+                    target_only=is_target and count == 1,
+                    shared_by_same_company=is_target and count > 1 and companies == {contract.company},
+                )
+            )
+        audits[product_key] = sorted(
+            product_audits,
+            key=lambda item: (item.sample_frequency, item.label),
+        )
+    return audits
 
 
 def select_comparison_groups(
@@ -140,8 +207,10 @@ def compare_contracts(
 
     results: list[ComparisonGroup] = []
     for category, items in sorted(eligible_groups.items(), key=lambda item: (-len(item[1]), item[0])):
+        frequency_audits = build_feature_frequency_audit(items)
         compared_products: list[ComparedProduct] = []
         for contract in sorted(items, key=lambda item: (item.company, item.product_name)):
+            audit = frequency_audits.get((contract.company, contract.product_name), [])
             compared_products.append(
                 ComparedProduct(
                     company=contract.company,
@@ -151,6 +220,10 @@ def compare_contracts(
                     source_url=contract.source_url,
                     key_facts=contract.key_facts,
                     unique_features=_pick_unique_features(contract, items, top_n=top_n),
+                    feature_audit=audit,
+                    common_features=[item.label for item in audit if item.classification == "通用功能"],
+                    relative_features=[item.label for item in audit if item.classification == "相对少见功能"],
+                    rare_features=[item.label for item in audit if item.classification == "真罕见条款"],
                     # 精算参数
                     entry_age=contract.entry_age,
                     gender=contract.gender,
